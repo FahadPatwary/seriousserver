@@ -12,20 +12,25 @@ const io = new Server(server, {
   },
 });
 
-// Handle connections
+// Serve a basic page to test if server is running
+app.get("/", (req, res) => {
+  res.send("✅ WebSocket Server is Running!");
+});
+
+// Handle WebSocket connections
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
 
   socket.on("syncMedia", (data) => {
-    console.log("Syncing media:", data);
+    console.log("📡 Syncing media:", data);
     socket.broadcast.emit("syncMedia", data); // Broadcast sync data
   });
 
   socket.on("disconnect", () => {
-    console.log("A user disconnected");
+    console.log("❌ A user disconnected");
   });
 });
 
-// Listen on Railway's PORT (default to 8080 if not set)
+// Listen on Railway's assigned PORT (default to 8080)
 const PORT = process.env.PORT || 8080;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
