@@ -21,9 +21,14 @@ app.get('/', (req, res) => {
 // Create a Socket.IO instance attached to the HTTP server
 const io = new Server(server, {
   cors: {
-    origin: "*",  // Allow all origins (use specific domains in production for security)
+    origin: "*",
     methods: ["GET", "POST"]
   }
+});
+
+io.on('connection', (socket) => {
+  console.log('User connected');
+  // Other event handling code
 });
 
 // Store the latest media state (to sync new users)
