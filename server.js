@@ -1,65 +1,63 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-const path = require('path'); // For handling file paths
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const path = require('path');
+const { io } = require('socket.io-client');  // Import Socket.io Client
 
-const app = express();
-const server = http.createServer(app);
+let socket;
 
-// Enable CORS to allow connections from the Electron app
-app.use(cors());
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 900,
+    height: 800,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      enableRemoteModule: false,
+      sandbox: true,
+    },
+  });
 
-// Serve static files (if you need to serve HTML, JS, CSS, or other assets)
-app.use(express.static(path.join(__dirname, 'public'))); // 'public' folder to store static assets
+  win.loadFile('index.html');
+}
 
-// For serving the index.html file if required (for development)
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));  // Ensure this file exists in your project
-});
+ipcMain.handle('dialog:openFile', async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Videos', extensions: ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'ogg', 'wmv', '3gp'] }],
+    });
 
-// Create a Socket.IO instance attached to the HTTP server
-const { Server } = require('socket.io');
-const io = new Server(server, {
-  cors: {
-    origin: "*",  // Allow all origins (use specific domains in production)
-    methods: ["GET", "POST"]
+    if (result.filePaths.length > 0) {
+      console.log('Selected File:', result.filePaths[0]);
+      return result.filePaths[0];
+    } else {
+      console.log('No file selected');
+      return null;
+    }
+  } catch (err) {
+    console.error('Error during file selection:', err);
+    return null;
   }
 });
 
-io.on('connection', (socket) => {
-  console.log('User connected');
-  // Other event handling code
-});
+app.whenReady().then(() => {
+  // Establish Socket connection
+  socket = io('wss://seriousserver-production.up.railway.app');
+  
+  socket.on('connect', () => {
+    console.log('Connected to WebSocket Server');
+  });
 
-// Store the latest media state (to sync new users)
-let mediaState = {
-  filePath: "",
-  currentTime: 0,
-  isPlaying: false
-};
-
-io.on('connection', (socket) => {
-  console.log(`🔗 User Connected: ${socket.id}`);
-
-  // Send current media state to newly connected clients
-  socket.emit('syncMedia', mediaState);
-
-  // When a client updates media state, broadcast it to all others
   socket.on('syncMedia', (data) => {
-    mediaState = data; // Update server's media state
-    socket.broadcast.emit('syncMedia', data); // Sync all other clients
-    console.log("📡 Media Sync Updated:", data);
+    console.log('Received sync media data:', data);
+    // Handle media sync here
   });
 
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log(`❌ User Disconnected: ${socket.id}`);
-  });
+  createWindow();
 });
 
-// Start the server (use Railway PORT or fallback to 3000)
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
 });
