@@ -29,6 +29,9 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("❌ A user disconnected");
   });
+  socket.on("connect", () => {
+    console.log(" A user connected");
+  });
 });
 
 // Listen on Railway's assigned PORT (default to 8080)
