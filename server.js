@@ -19,9 +19,10 @@ app.get('/', (req, res) => {
 });
 
 // Create a Socket.IO instance attached to the HTTP server
+const { Server } = require('socket.io');
 const io = new Server(server, {
   cors: {
-    origin: "*",
+    origin: "*",  // Allow all origins (use specific domains in production)
     methods: ["GET", "POST"]
   }
 });
