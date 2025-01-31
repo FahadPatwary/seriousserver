@@ -1,54 +1,49 @@
-// server.js
-
 const express = require('express');
 const http = require('http');
-const path = require('path');
-const socketIo = require('socket.io');
+const { Server } = require('socket.io');
+const cors = require('cors');
 
-// Create an Express application
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.io on the server
-const io = socketIo(server);
+// Enable CORS to allow connections from Electron app
+app.use(cors());
 
-// Store the media state (this will be shared among clients)
+const io = new Server(server, {
+  cors: {
+    origin: "*",  // Allow all origins (use specific domains in production)
+    methods: ["GET", "POST"]
+  }
+});
+
+// Store the latest media state (to sync new users)
 let mediaState = {
-  filePath: null,
+  filePath: "",
   currentTime: 0,
-  isPlaying: false,
-  playbackRate: 1
+  isPlaying: false
 };
 
-// Serve static files (for frontend)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Send index.html explicitly for root requests
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Listen for connections from clients
 io.on('connection', (socket) => {
-  console.log('A client connected');
+  console.log(`🔗 User Connected: ${socket.id}`);
 
-  // Send the current media state to the new client
+  // Send current media state to newly connected clients
   socket.emit('syncMedia', mediaState);
 
-  // Listen for media state updates from the client
+  // When a client updates media state, broadcast it to all others
   socket.on('syncMedia', (data) => {
-    mediaState = data;  // Update the media state
-    socket.broadcast.emit('syncMedia', data); // Broadcast the update to other clients
+    mediaState = data; // Update server's media state
+    socket.broadcast.emit('syncMedia', data); // Sync all other clients
+    console.log("📡 Media Sync Updated:", data);
   });
 
-  // Handle client disconnection
+  // Handle disconnection
   socket.on('disconnect', () => {
-    console.log('A client disconnected');
+    console.log(`❌ User Disconnected: ${socket.id}`);
   });
 });
 
-// Set the server to listen on port 3000
-const port = process.env.PORT || 3000; // Use the port from the environment or default to 3000
-server.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// Start the server (use Railway PORT or fallback to 3000)
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
