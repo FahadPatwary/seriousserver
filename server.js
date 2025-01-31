@@ -1,63 +1,48 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
-const path = require('path');
-const { io } = require('socket.io-client');  // Import Socket.io Client
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
 
-let socket;
+const app = express();
+const server = http.createServer(app);
 
-function createWindow() {
-  const win = new BrowserWindow({
-    width: 900,
-    height: 800,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
-      enableRemoteModule: false,
-      sandbox: true,
-    },
-  });
+// Enable CORS for WebSocket connections
+app.use(cors());
 
-  win.loadFile('index.html');
-}
-
-ipcMain.handle('dialog:openFile', async () => {
-  try {
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: [{ name: 'Videos', extensions: ['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'ogg', 'wmv', '3gp'] }],
-    });
-
-    if (result.filePaths.length > 0) {
-      console.log('Selected File:', result.filePaths[0]);
-      return result.filePaths[0];
-    } else {
-      console.log('No file selected');
-      return null;
-    }
-  } catch (err) {
-    console.error('Error during file selection:', err);
-    return null;
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
   }
 });
 
-app.whenReady().then(() => {
-  // Establish Socket connection
-  socket = io('wss://seriousserver-production.up.railway.app');
-  
-  socket.on('connect', () => {
-    console.log('Connected to WebSocket Server');
-  });
+// Store the latest media state (to sync new users)
+let mediaState = {
+  filePath: "",
+  currentTime: 0,
+  isPlaying: false,
+  isMuted: false
+};
 
+io.on('connection', (socket) => {
+  console.log(`🔗 User Connected: ${socket.id}`);
+
+  // Send current media state to newly connected clients
+  socket.emit('syncMedia', mediaState);
+
+  // When a client updates media state, broadcast it to all others
   socket.on('syncMedia', (data) => {
-    console.log('Received sync media data:', data);
-    // Handle media sync here
+    mediaState = { ...mediaState, ...data }; // Update state
+    socket.broadcast.emit('syncMedia', mediaState); // Sync all clients
+    console.log("📡 Media Sync Updated:", mediaState);
   });
 
-  createWindow();
+  socket.on('disconnect', () => {
+    console.log(`❌ User Disconnected: ${socket.id}`);
+  });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`🚀 WebSocket Server running on port ${PORT}`);
 });
