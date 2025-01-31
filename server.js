@@ -1,13 +1,20 @@
-const { Server } = require("socket.io");
+const express = require("express");
 const http = require("http");
+const { Server } = require("socket.io");
 
-const server = http.createServer();
+const app = express();
+const server = http.createServer(app);
+
 const io = new Server(server, {
-  cors: { origin: "*" },
+  cors: {
+    origin: "*", // Allow all origins
+    methods: ["GET", "POST"],
+  },
 });
 
+// Handle connections
 io.on("connection", (socket) => {
-  console.log("A user connected");
+  console.log("A user connected:", socket.id);
 
   socket.on("syncMedia", (data) => {
     console.log("Syncing media:", data);
@@ -19,4 +26,6 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(8080, () => console.log("WebSocket server running on port 8080"));
+// Listen on Railway's PORT (default to 8080 if not set)
+const PORT = process.env.PORT || 8080;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
