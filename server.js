@@ -12,6 +12,9 @@ const io = new Server(server, {
   },
 });
 
+// Store the last media state per room
+const roomMediaState = {};
+
 // Serve a basic welcome page
 app.get("/", (req, res) => {
   res.send("✅ WebSocket Room-Based Sync Server is Running!");
@@ -25,12 +28,23 @@ io.on("connection", (socket) => {
   socket.on("joinRoom", (roomId) => {
     socket.join(roomId);
     console.log(`🔹 User ${socket.id} joined room: ${roomId}`);
+
+    // If there's an existing media state for this room, send it to the new user
+    if (roomMediaState[roomId]) {
+      console.log(`🔄 Sending latest media state to ${socket.id} in Room ${roomId}`);
+      socket.emit("syncMedia", roomMediaState[roomId]);
+    }
   });
 
-  // Sync media within a room
+  // Sync media within a room and store its state
   socket.on("syncMedia", ({ roomId, mediaState }) => {
     console.log(`🔄 Syncing media in Room ${roomId}:`, mediaState);
-    socket.to(roomId).emit("syncMedia", mediaState); // Broadcast within room
+
+    // Save the media state for future users
+    roomMediaState[roomId] = mediaState;
+
+    // Broadcast update to everyone except sender
+    socket.to(roomId).emit("syncMedia", mediaState);
   });
 
   // Handle user disconnection
