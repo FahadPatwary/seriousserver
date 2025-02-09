@@ -1,5 +1,3 @@
-// server.js
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -24,26 +22,38 @@ io.on("connection", (socket) => {
   console.log(`🟢 User connected: ${socket.id}`);
 
   socket.on("joinRoom", (roomId) => {
-    socket.join(roomId);
-    console.log(`🔹 User ${socket.id} joined room: ${roomId}`);
+    try {
+      socket.join(roomId);
+      console.log(`🔹 User ${socket.id} joined room: ${roomId}`);
 
-    if (roomMediaState[roomId]) {
-      console.log(`🔄 Sending latest media state to ${socket.id} in Room ${roomId}`);
-      socket.emit("syncMedia", { mediaState: roomMediaState[roomId] });
+      if (roomMediaState[roomId]) {
+        console.log(`🔄 Sending latest media state to ${socket.id} in Room ${roomId}`);
+        socket.emit("syncMedia", { mediaState: roomMediaState[roomId] });
+      }
+    } catch (error) {
+      console.error(`❌ Error joining room ${roomId}:`, error);
     }
   });
 
   socket.on("syncMedia", ({ roomId, mediaState }) => {
-    console.log(`🔄 Syncing media in Room ${roomId}:`, mediaState);
+    try {
+      console.log(`🔄 Syncing media in Room ${roomId}:`, mediaState);
 
-    roomMediaState[roomId] = mediaState;
+      roomMediaState[roomId] = mediaState;
 
-    socket.to(roomId).emit("syncMedia", { mediaState });
+      socket.to(roomId).emit("syncMedia", { mediaState });
+    } catch (error) {
+      console.error(`❌ Error syncing media in room ${roomId}:`, error);
+    }
   });
 
   socket.on("leaveRoom", (roomId) => {
-    socket.leave(roomId);
-    console.log(`🔸 User ${socket.id} left room: ${roomId}`);
+    try {
+      socket.leave(roomId);
+      console.log(`🔸 User ${socket.id} left room: ${roomId}`);
+    } catch (error) {
+      console.error(`❌ Error leaving room ${roomId}:`, error);
+    }
   });
 
   socket.on("disconnect", () => {
