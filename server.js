@@ -12,11 +12,11 @@ const io = new Server(server, {
   },
 });
 
-// Add the CSP header
+// Update the CSP header
 app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; connect-src 'self' https://seriousserver-production.up.railway.app wss://seriousserver-production.up.railway.app"
+    "default-src 'self'; connect-src 'self' https://seriousserver-production.up.railway.app wss://seriousserver-production.up.railway.app; media-src 'self' mediastream:; worker-src 'self'"
   );
   next();
 });
