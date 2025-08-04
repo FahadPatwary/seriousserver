@@ -16,7 +16,7 @@ const io = new Server(server, {
 app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; connect-src 'self' https://seriousserver-production.up.railway.app wss://seriousserver-production.up.railway.app"
+    "default-src 'self'; connect-src 'self' https://seriousserver.onrender.com wss://seriousserver.onrender.com"
   );
   next();
 });
