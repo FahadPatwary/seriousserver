@@ -7,9 +7,15 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Adjust this in production
+    origin: process.env.NODE_ENV === 'production' 
+      ? ["https://media-player-web.netlify.app", "https://*.netlify.app"]
+      : "*",
     methods: ["GET", "POST"],
+    credentials: true
   },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling']
 });
 
 // Add the CSP header
@@ -27,11 +33,43 @@ app.get("/", (req, res) => {
   res.send("🎬 Media Sync Server is Running!");
 });
 
+// Rate limiting map to prevent abuse
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 100;
+
+// Helper function to check rate limit
+function checkRateLimit(socketId) {
+  const now = Date.now();
+  const userRequests = rateLimitMap.get(socketId) || { count: 0, windowStart: now };
+  
+  if (now - userRequests.windowStart > RATE_LIMIT_WINDOW) {
+    userRequests.count = 1;
+    userRequests.windowStart = now;
+  } else {
+    userRequests.count++;
+  }
+  
+  rateLimitMap.set(socketId, userRequests);
+  return userRequests.count <= MAX_REQUESTS_PER_WINDOW;
+}
+
 io.on("connection", (socket) => {
   console.log("✅ A user connected:", socket.id);
+  
+  // Clean up rate limit data on disconnect
+  socket.on('disconnect', () => {
+    rateLimitMap.delete(socket.id);
+  });
 
   socket.on("createRoom", () => {
     try {
+      // Check rate limit
+      if (!checkRateLimit(socket.id)) {
+        socket.emit("roomError", { message: "Rate limit exceeded. Please try again later." });
+        return;
+      }
+      
       // Generate a random 6-character room code
       const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       socket.join(roomCode);
@@ -45,13 +83,25 @@ io.on("connection", (socket) => {
 
   socket.on("joinRoom", (data) => {
     try {
+      // Check rate limit
+      if (!checkRateLimit(socket.id)) {
+        socket.emit("roomError", { message: "Rate limit exceeded. Please try again later." });
+        return;
+      }
+      
       const roomCode = data.roomCode || data;
       if (!roomCode || typeof roomCode !== 'string' || roomCode.trim().length === 0) {
         socket.emit("roomError", { message: "Invalid room code" });
         return;
       }
       
+      // Validate room code format (6 alphanumeric characters)
       const cleanRoomCode = roomCode.trim().toUpperCase();
+      if (!/^[A-Z0-9]{6}$/.test(cleanRoomCode)) {
+        socket.emit("roomError", { message: "Room code must be 6 characters long" });
+        return;
+      }
+      
       socket.join(cleanRoomCode);
       console.log(`🔗 User ${socket.id} joined room ${cleanRoomCode}`);
       socket.emit("roomJoined", { roomCode: cleanRoomCode });
