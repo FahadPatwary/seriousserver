@@ -36,44 +36,17 @@ seriousserver/
 ├── package.json         # Dependencies and scripts
 ├── public/
 │   └── index.html       # Static status page
-├── vercel.json          # Vercel deployment config
-├── railway.json         # Railway deployment config
 ├── render.yaml          # Render deployment config
-├── firebase.json        # Firebase hosting config (static only)
-├── .firebaserc         # Firebase project config
 └── README.md           # This file
 ```
 
-## Platform Comparison
+## 🔗 Deployment URL
 
-| Platform | Cost | Setup | Socket.IO Support | Custom Domain |
-|----------|------|-------|-------------------|---------------|
-| **Vercel** | Free tier | ⭐⭐⭐ Easy | ✅ Full support | ✅ Yes |
-| **Railway** | Free tier | ⭐⭐⭐ Easy | ✅ Full support | ✅ Yes |
-| **Render** | Free tier | ⭐⭐ Medium | ✅ Full support | ✅ Yes |
-| **Firebase** | Static only | ⭐ Hard | ❌ No (static only) | ✅ Yes |
-
-## API Endpoints
-
-After deployment, your server will be available at:
-
-### Vercel
-- **Base URL:** `https://your-app-name.vercel.app`
-- **Socket.IO:** Connect to the base URL for real-time features
-
-### Railway
-- **Base URL:** `https://your-app-name.up.railway.app`
-- **Socket.IO:** Connect to the base URL for real-time features
-
-### Render
+After deployment to Render, your server will be available at:
 - **Base URL:** `https://your-app-name.onrender.com`
-- **Socket.IO:** Connect to the base URL for real-time features
+- **Socket.IO Endpoint:** `wss://your-app-name.onrender.com`
 
-### Firebase (Static Only)
-- **Base URL:** `https://your-project-id.web.app`
-- **Note:** Only serves the status page, no server functionality
-
-## Socket.IO Events
+## 🔌 Socket.IO Events
 
 ### Client → Server
 - `joinRoom(roomId)` - Join a synchronization room
@@ -85,67 +58,54 @@ After deployment, your server will be available at:
 - `media-state-update({ mediaState })` - Receive media state updates
 - `syncMedia({ mediaState })` - Legacy sync event (for backward compatibility)
 
-## Environment Variables
+## ⚙️ Configuration
 
-No additional environment variables are required. The server uses Firebase's built-in authentication and CORS handling.
+No additional environment variables are required. The server uses built-in CORS handling for cross-origin requests.
 
-## Local Development
+## 🧪 Local Development
 
 To test locally before deployment:
 
 ```bash
 # Install dependencies
-cd functions && npm install && cd ..
+npm install
 
-# Start Firebase emulators
-firebase emulators:start
+# Start local server
+npm start
 ```
 
-## Troubleshooting
-
-### Vercel
-1. **Build Errors:** Check that `package.json` has correct dependencies
-2. **Socket.IO Issues:** Ensure your client connects to the correct Vercel URL
-3. **Environment Variables:** Set in Vercel dashboard if needed
-
-### Railway
-1. **Deployment Fails:** Check Railway logs in dashboard
-2. **Port Issues:** Railway automatically assigns PORT environment variable
-3. **Memory Limits:** Free tier has 512MB RAM limit
+## 🐛 Troubleshooting
 
 ### Render
-1. **Build Timeout:** Free tier has build time limits
-2. **Cold Starts:** Free tier sleeps after 15 minutes of inactivity
-3. **Logs:** Check Render dashboard for detailed logs
+1. **Build Fails:** Check build logs in Render dashboard
+2. **Port Issues:** Render automatically assigns PORT environment variable
+3. **Sleep Mode:** Free tier apps sleep after 15 minutes of inactivity
+4. **Socket.IO Connection:** Ensure client connects to correct Render URL
 
 ### General Issues
-1. **CORS Errors:** Update CORS settings in `server.js` for production domains
-2. **Socket.IO Connection:** Ensure client uses correct server URL
-3. **Dependencies:** Run `npm install` to ensure all packages are installed
+1. **CORS Errors:** The server includes CORS middleware for cross-origin requests
+2. **Socket.IO Connection:** Ensure your client uses the correct server URL
+3. **Port Conflicts:** Default port is 3001, but Render assigns its own
 
-## Security Notes
+## 🧪 Testing Your Deployment
 
-- Update CORS origins in production to match your client domains
-- Consider implementing authentication for room access
-- Use environment variables for sensitive configuration
-- Monitor platform usage to stay within free tier limits
-- Enable HTTPS in production (automatically handled by most platforms)
+1. **Visit your deployment URL** to see the status page
+2. **Check browser console** for any connection errors
+3. **Test Socket.IO connection** using your media player client
+4. **Monitor server logs** in Render dashboard
 
-## Support
+## 📚 Resources
 
-For issues related to:
-- **Vercel:** Check [Vercel Documentation](https://vercel.com/docs)
-- **Railway:** Check [Railway Documentation](https://docs.railway.app)
-- **Render:** Check [Render Documentation](https://render.com/docs)
-- **Socket.IO:** Check [Socket.IO Documentation](https://socket.io/docs/)
-- **Media sync logic:** Review the original server implementation
+- **Socket.IO Documentation:** [socket.io/docs](https://socket.io/docs/)
+- **Express.js Documentation:** [expressjs.com](https://expressjs.com/)
+- **Node.js Documentation:** [nodejs.org/docs](https://nodejs.org/docs/)
+- **Render Documentation:** [render.com/docs](https://render.com/docs)
 
-## Quick Start
+## 🚀 Quick Start Guide
 
-1. **Clone/Download** this repository
+1. **Deploy to Render** using the instructions above
 2. **Install dependencies:** `npm install`
 3. **Test locally:** `npm start`
-4. **Deploy** to your preferred platform using the instructions above
-5. **Update your client** to connect to the new server URL
+4. **Update your client** to connect to the new server URL
 
 Your media sync server will be live and ready for real-time synchronization! 🎬✨
