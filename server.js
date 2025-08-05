@@ -38,6 +38,40 @@ const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 100;
 
+// Room state tracking for better synchronization
+const roomStates = new Map();
+const roomUsers = new Map();
+
+// Helper function to get or create room state
+function getRoomState(roomId) {
+  if (!roomStates.has(roomId)) {
+    roomStates.set(roomId, {
+      lastMediaState: null,
+      lastUpdateTime: null,
+      lastUpdatedBy: null
+    });
+    }
+    return roomStates.get(roomId);
+}
+
+// Helper function to get room users
+function getRoomUsers(roomId) {
+  if (!roomUsers.has(roomId)) {
+    roomUsers.set(roomId, new Set());
+  }
+  return roomUsers.get(roomId);
+}
+
+// Cleanup empty rooms
+function cleanupRoom(roomId) {
+  const users = getRoomUsers(roomId);
+  if (users.size === 0) {
+    roomStates.delete(roomId);
+    roomUsers.delete(roomId);
+    console.log(`🧹 Cleaned up empty room: ${roomId}`);
+  }
+}
+
 // Helper function to check rate limit
 function checkRateLimit(socketId) {
   const now = Date.now();
@@ -103,11 +137,35 @@ io.on("connection", (socket) => {
       }
       
       socket.join(cleanRoomCode);
-      console.log(`🔗 User ${socket.id} joined room ${cleanRoomCode}`);
+      
+      // Add user to room tracking
+      const users = getRoomUsers(cleanRoomCode);
+      users.add(socket.id);
+      
+      console.log(`🔗 User ${socket.id} joined room ${cleanRoomCode} (${users.size} users total)`);
       socket.emit("roomJoined", { roomCode: cleanRoomCode });
       
+      // Send current room state to new joiner if available
+      const roomState = getRoomState(cleanRoomCode);
+      if (roomState.lastMediaState && roomState.lastUpdateTime) {
+        const timeSinceUpdate = Date.now() - roomState.lastUpdateTime;
+        // Only send state if it's recent (within 30 seconds)
+        if (timeSinceUpdate < 30000) {
+          console.log(`📤 Sending current room state to ${socket.id}`);
+          socket.emit("syncMedia", {
+            mediaState: roomState.lastMediaState,
+            senderId: roomState.lastUpdatedBy,
+            syncType: 'ROOM_STATE',
+            timestamp: roomState.lastUpdateTime
+          });
+        }
+      }
+      
       // Notify other users in the room
-      socket.to(cleanRoomCode).emit("userJoined", { userId: socket.id });
+      socket.to(cleanRoomCode).emit("userJoined", { 
+        userId: socket.id,
+        userCount: users.size
+      });
     } catch (error) {
       console.error(`❌ Error joining room for ${socket.id}:`, error);
       socket.emit("roomError", { message: "Failed to join room" });
@@ -119,18 +177,29 @@ io.on("connection", (socket) => {
        const roomCode = data.roomCode || data;
        if (roomCode) {
          socket.leave(roomCode);
-         console.log(`🚪 User ${socket.id} left room ${roomCode}`);
+         
+         // Remove user from room tracking
+         const users = getRoomUsers(roomCode);
+         users.delete(socket.id);
+         
+         console.log(`🚪 User ${socket.id} left room ${roomCode} (${users.size} users remaining)`);
          socket.emit("roomLeft", { roomCode });
          
          // Notify other users in the room
-         socket.to(roomCode).emit("userLeft", { userId: socket.id });
+         socket.to(roomCode).emit("userLeft", { 
+           userId: socket.id,
+           userCount: users.size
+         });
+         
+         // Cleanup empty room
+         cleanupRoom(roomCode);
        }
      } catch (error) {
        console.error(`❌ Error leaving room for ${socket.id}:`, error);
      }
    });
 
-  socket.on("syncMedia", ({ roomId, mediaState }) => {
+  socket.on("syncMedia", ({ roomId, mediaState, senderId, isAutoSync, isManualSync }) => {
     try {
       if (!roomId || !mediaState) {
         console.error(`❌ Invalid sync data from ${socket.id}:`, { roomId, mediaState });
@@ -145,18 +214,54 @@ io.on("connection", (socket) => {
         return;
       }
       
-      console.log(`🔄 Syncing media in room ${roomId}:`, mediaState);
-      socket.to(roomId).emit("syncMedia", { mediaState });
+      // Enhanced logging with sync type
+      const syncType = isAutoSync ? 'AUTO' : isManualSync ? 'MANUAL' : 'UNKNOWN';
+      console.log(`🔄 [${syncType}] Syncing media in room ${roomId} from ${socket.id}:`, {
+        currentTime: mediaState.currentTime.toFixed(2),
+        isPlaying: mediaState.isPlaying,
+        senderId
+      });
+      
+      // Update room state
+      const roomState = getRoomState(roomId);
+      roomState.lastMediaState = mediaState;
+      roomState.lastUpdateTime = Date.now();
+      roomState.lastUpdatedBy = socket.id;
+      
+      // Broadcast to all other users in the room with sender info
+      socket.to(roomId).emit("syncMedia", { 
+        mediaState, 
+        senderId: socket.id,
+        syncType,
+        timestamp: roomState.lastUpdateTime
+      });
+      
     } catch (error) {
       console.error(`❌ Error syncing media for ${socket.id}:`, error);
       socket.emit("roomError", { message: "Failed to sync media" });
     }
   });
-
+  
+  // Handle user disconnect - cleanup from all rooms
   socket.on("disconnect", () => {
-    console.log(`❌ User ${socket.id} disconnected`);
-    // Socket.IO automatically handles leaving rooms on disconnect
-    // But we could add additional cleanup logic here if needed
+    console.log(`👋 User ${socket.id} disconnected`);
+    
+    // Remove user from all rooms they were in
+    for (const [roomId, users] of roomUsers.entries()) {
+      if (users.has(socket.id)) {
+        users.delete(socket.id);
+        console.log(`🧹 Removed ${socket.id} from room ${roomId} (${users.size} users remaining)`);
+        
+        // Notify other users in the room
+        socket.to(roomId).emit("userLeft", {
+          userId: socket.id,
+          userCount: users.size
+        });
+        
+        // Cleanup empty room
+        cleanupRoom(roomId);
+      }
+    }
   });
 });
 
